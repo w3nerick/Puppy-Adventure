@@ -1,11 +1,18 @@
-name: Build Web (WASM)
+name: Build Web (WASM) and update dist/
 
 on:
   push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
+    branches: ["main", "feature/**"]
+    paths:
+      - 'src/**'
+      - 'web/**'
+      - 'CMakeLists.txt'
+      - 'scripts/vercel-build.sh'
+      - '.github/workflows/build-web.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-web:
@@ -14,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
@@ -30,8 +39,9 @@ jobs:
       - name: Build
         run: cmake --build build-web -j
 
-      - name: Prepare dist
+      - name: Update dist/
         run: |
+          rm -rf dist
           mkdir -p dist
           cp build-web/index.html dist/
           cp build-web/index.js   dist/
@@ -39,9 +49,22 @@ jobs:
           if [ -f build-web/index.data ]; then cp build-web/index.data dist/; fi
           ls -lh dist/
 
-      - name: Upload artifact (Vercel-ready)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: catgame-web
           path: dist/
           retention-days: 30
+
+      - name: Commit updated dist/ if changed
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/
+          if git diff --staged --quiet; then
+            echo "No changes in dist/"
+          else
+            git commit -m "ci: update WASM artifacts in dist/ [skip ci]"
+            git push
+          fi
