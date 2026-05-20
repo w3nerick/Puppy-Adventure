@@ -1,0 +1,47 @@
+name: Build Web (WASM)
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build-web:
+    name: Compile to WebAssembly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+          actions-cache-folder: emsdk-cache
+
+      - name: Verify emcc
+        run: emcc --version
+
+      - name: Configure (emcmake)
+        run: emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release -DPLATFORM=Web
+
+      - name: Build
+        run: cmake --build build-web -j
+
+      - name: Prepare dist
+        run: |
+          mkdir -p dist
+          cp build-web/index.html dist/
+          cp build-web/index.js   dist/
+          cp build-web/index.wasm dist/
+          if [ -f build-web/index.data ]; then cp build-web/index.data dist/; fi
+          ls -lh dist/
+
+      - name: Upload artifact (Vercel-ready)
+        uses: actions/upload-artifact@v4
+        with:
+          name: catgame-web
+          path: dist/
+          retention-days: 30

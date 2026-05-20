@@ -2,6 +2,13 @@
 #include <cmath>
 #include <cstdio>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+static void EmscriptenMainLoop(void* arg) {
+    static_cast<Game*>(arg)->Frame();
+}
+#endif
+
 Game::Game() {
     InitWindow(SCREEN_W, SCREEN_H, "Cat Game - Aventura Gatuna");
     SetTargetFPS(60);
@@ -13,14 +20,22 @@ Game::~Game() {
     CloseWindow();
 }
 
-void Game::Run() {
-    while (!WindowShouldClose()) {
-        float dt = GetFrameTime();
-        if (dt > 0.05f) dt = 0.05f; // cap delta
+void Game::Frame() {
+    float dt = GetFrameTime();
+    if (dt > 0.05f) dt = 0.05f; // cap delta
+    Update(dt);
+    Draw();
+}
 
-        Update(dt);
-        Draw();
+void Game::Run() {
+#ifdef __EMSCRIPTEN__
+    // En el navegador no podemos bloquear con un while; cedemos al event loop del browser.
+    emscripten_set_main_loop_arg(EmscriptenMainLoop, this, 0, 1);
+#else
+    while (!WindowShouldClose()) {
+        Frame();
     }
+#endif
 }
 
 void Game::ResetLevel() {

@@ -16,6 +16,7 @@ public:
     ~Game();
 
     void Run();
+    void Frame();   // un solo frame: usado por el loop nativo y por Emscripten
 
 private:
     enum class State { Title, Playing, Win, GameOver };

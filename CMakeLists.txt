@@ -9,7 +9,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# raylib se descarga y compila automáticamente con FetchContent
+# Cuando se compila con emcmake / emscripten, le decimos a raylib que use el backend Web.
+if(EMSCRIPTEN)
+    set(PLATFORM Web CACHE STRING "raylib platform" FORCE)
+endif()
+
+# raylib se descarga y compila automaticamente con FetchContent
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
 
@@ -22,7 +27,9 @@ FetchContent_Declare(
 
 set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_GAMES    OFF CACHE BOOL "" FORCE)
-set(SUPPORT_X11    ON  CACHE BOOL "" FORCE)
+if(NOT EMSCRIPTEN)
+    set(SUPPORT_X11 ON CACHE BOOL "" FORCE)
+endif()
 FetchContent_MakeAvailable(raylib)
 
 add_executable(catgame
@@ -35,6 +42,25 @@ add_executable(catgame
 
 target_include_directories(catgame PRIVATE src)
 target_link_libraries(catgame PRIVATE raylib)
+
+if(EMSCRIPTEN)
+    # Genera index.html (+ index.js + index.wasm) directamente.
+    set_target_properties(catgame PROPERTIES
+        OUTPUT_NAME "index"
+        SUFFIX ".html"
+    )
+    target_link_options(catgame PRIVATE
+        "-sUSE_GLFW=3"
+        "-sASYNCIFY"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sINITIAL_MEMORY=67108864"
+        "-sFORCE_FILESYSTEM=1"
+        "-sEXPORTED_RUNTIME_METHODS=['HEAPF32']"
+        "--shell-file=${CMAKE_SOURCE_DIR}/web/shell.html"
+    )
+    # Optimizacion para reducir el tamanio del .wasm
+    target_compile_options(catgame PRIVATE -Os)
+endif()
 
 if(WIN32)
     target_link_libraries(catgame PRIVATE winmm)
