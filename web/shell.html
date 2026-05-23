@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cat Game - Aventura Gatuna</title>
-    <meta name="description" content="Juego de plataformas estilo Mario Bros con un gatito como protagonista.">
+    <title>Puppy Game - Aventura del Perrito</title>
+    <meta name="description" content="Juego de plataformas estilo Mario Bros con un perrito como protagonista. 3 niveles: Parque, Bosque y Torre Nocturna.">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
@@ -63,7 +63,7 @@
             z-index: 5;
         }
         #loading.hide { opacity: 0; pointer-events: none; }
-        .cat-loader {
+        .puppy-loader {
             font-size: 56px;
             animation: bounce 0.8s ease-in-out infinite;
             margin-bottom: 16px;
@@ -124,14 +124,14 @@
     </style>
 </head>
 <body>
-    <h1><span class="paw">&#128062;</span> Cat Game <span class="paw">&#128062;</span></h1>
-    <div class="subtitle">Aventura Gatuna - Plataformas estilo Mario Bros</div>
+    <h1><span class="paw">&#128062;</span> Puppy Game <span class="paw">&#128062;</span></h1>
+    <div class="subtitle">Aventura del Perrito - 3 niveles de plataformas estilo Mario Bros</div>
 
     <div id="game-wrap">
         <canvas id="canvas" width="960" height="540" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
         <div id="loading">
-            <div class="cat-loader">&#128049;</div>
-            <div>Cargando el gatito...</div>
+            <div class="puppy-loader">&#128054;</div>
+            <div>Cargando el perrito...</div>
             <div id="progress-bar"><div id="progress-fill"></div></div>
             <div id="status-text">Inicializando WebAssembly...</div>
         </div>
