@@ -38,6 +38,8 @@ add_executable(catgame
     src/Player.cpp
     src/Enemy.cpp
     src/Level.cpp
+    src/PowerUp.cpp
+    src/Bark.cpp
 )
 
 target_include_directories(catgame PRIVATE src)
