@@ -40,6 +40,7 @@ add_executable(catgame
     src/Level.cpp
     src/PowerUp.cpp
     src/Bark.cpp
+    src/Particle.cpp
 )
 
 target_include_directories(catgame PRIVATE src)

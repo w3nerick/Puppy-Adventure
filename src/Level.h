@@ -20,8 +20,9 @@ enum class Tile : unsigned char {
 enum class BlockDrop : unsigned char {
     None,
     Coin,
-    Mushroom,  // hueso magico (Big)
-    FireFlower // pimiento de fuego (Fire)
+    Mushroom,    // hueso magico (Big)
+    FireFlower,  // pimiento de fuego (Fire)
+    BrickBroken  // ladrillo destruido por jugador grande
 };
 
 // Moneda recolectable.
@@ -51,8 +52,9 @@ public:
     bool RectIntersectsSpikes(Rectangle r) const;
 
     // Golpea el tile (x,y) desde abajo. Si era un MysteryBlock o CoinBlock,
-    // lo convierte en UsedBlock y devuelve que dropea.
-    BlockDrop HitFromBelow(int tx, int ty);
+    // lo convierte en UsedBlock y devuelve que dropea. Si es un Brick y
+    // canBreakBricks=true, lo rompe (Empty) y devuelve BrickBroken.
+    BlockDrop HitFromBelow(int tx, int ty, bool canBreakBricks);
 
     // Anade una moneda dinamica (la que sale del CoinBlock).
     void SpawnCoin(Vector2 pos);

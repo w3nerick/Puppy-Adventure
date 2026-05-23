@@ -6,6 +6,7 @@
 #include "Enemy.h"
 #include "PowerUp.h"
 #include "Bark.h"
+#include "Particle.h"
 
 #include <vector>
 
@@ -54,6 +55,7 @@ private:
     std::vector<Enemy>   enemies;
     std::vector<PowerUp> powerUps;
     std::vector<Bark>    barks;
+    Particles            particles;
     Camera2D             camera{};
 
     State  state         = State::Title;

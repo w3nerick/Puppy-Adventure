@@ -274,18 +274,20 @@ bool Level::RectIntersectsSpikes(Rectangle r) const {
     return false;
 }
 
-BlockDrop Level::HitFromBelow(int tx, int ty) {
+BlockDrop Level::HitFromBelow(int tx, int ty, bool canBreakBricks) {
     if (tx < 0 || tx >= cols || ty < 0 || ty >= rows) return BlockDrop::None;
     Tile t = At(tx, ty);
     if (t == Tile::MysteryBlock) {
         At(tx, ty) = Tile::UsedBlock;
-        // Alternamos: si la columna es par -> Mushroom, impar -> FireFlower
-        // Asi siempre hay variedad sin un sistema RNG.
         return (tx % 2 == 0) ? BlockDrop::Mushroom : BlockDrop::FireFlower;
     }
     if (t == Tile::CoinBlock) {
         At(tx, ty) = Tile::UsedBlock;
         return BlockDrop::Coin;
+    }
+    if (t == Tile::Brick && canBreakBricks) {
+        At(tx, ty) = Tile::Empty;
+        return BlockDrop::BrickBroken;
     }
     return BlockDrop::None;
 }

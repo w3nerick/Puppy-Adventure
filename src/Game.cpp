@@ -57,6 +57,7 @@ void Game::ResetLevel() {
     }
     powerUps.clear();
     barks.clear();
+    particles.Clear();
     for (auto& c : level.Coins()) {
         c.collected = false;
         c.animTime = 0;
@@ -73,19 +74,26 @@ void Game::LoadNextLevel() {
     player.ApplyPowerUp(saved);
 }
 
-// Detectar si el jugador esta golpeando un MysteryBlock/CoinBlock desde abajo.
+// Detectar si el jugador esta golpeando un MysteryBlock/CoinBlock/Brick desde abajo.
 void Game::CheckMysteryBlockHits() {
-    // Solo cuando el jugador esta subiendo (vel.y < 0)
     if (player.Velocity().y >= 0) return;
 
+    bool canBreak = (player.State() != PowerState::Small);
+
     Rectangle b = player.Bounds();
-    // Buscamos los tiles justo encima de la cabeza del jugador
     int tx0 = (int)(b.x / Level::TILE);
     int tx1 = (int)((b.x + b.width - 1) / Level::TILE);
     int ty  = (int)((b.y - 1) / Level::TILE);
 
+    Color brickPalette;
+    switch (level.CurrentLevel()) {
+        case 2:  brickPalette = {200, 130,  70, 255}; break;
+        case 3:  brickPalette = {130, 100, 160, 255}; break;
+        default: brickPalette = ORANGE;
+    }
+
     for (int x = tx0; x <= tx1; x++) {
-        BlockDrop drop = level.HitFromBelow(x, ty);
+        BlockDrop drop = level.HitFromBelow(x, ty, canBreak);
         if (drop == BlockDrop::None) continue;
 
         Vector2 center = level.TileCenter(x, ty);
@@ -94,6 +102,8 @@ void Game::CheckMysteryBlockHits() {
                 level.SpawnCoin({ center.x, center.y - Level::TILE * 1.0f });
                 score += 50;
                 coinsGot++;
+                particles.SpawnCoinSpark(center);
+                particles.SpawnScorePopup(center, 50, GOLD);
                 break;
             case BlockDrop::Mushroom:
                 powerUps.emplace_back(center, PowerUpKind::Mushroom);
@@ -104,6 +114,11 @@ void Game::CheckMysteryBlockHits() {
                     player.State() == PowerState::Small ? PowerUpKind::Mushroom
                                                         : PowerUpKind::FireFlower
                 );
+                break;
+            case BlockDrop::BrickBroken:
+                particles.SpawnBrickBreak(center, brickPalette);
+                score += 25;
+                particles.SpawnScorePopup(center, 25, ORANGE);
                 break;
             default: break;
         }
@@ -123,6 +138,13 @@ void Game::HandlePlayerEnemyCollisions() {
                 e.Stomp();
                 player.Bounce();
                 score += 100;
+                Vector2 stompPos = { eBounds.x + eBounds.width / 2,
+                                     eBounds.y + eBounds.height };
+                particles.SpawnStomp(stompPos);
+                particles.SpawnScorePopup(
+                    { eBounds.x + eBounds.width / 2, eBounds.y },
+                    100, WHITE
+                );
             } else if (!player.Invincible()) {
                 player.TakeHit();
                 if (!player.IsDead()) {
@@ -155,6 +177,12 @@ void Game::UpdateProjectilesAndPowerUps(float dt) {
                 e.Stomp();
                 b.Kill();
                 score += 100;
+                Rectangle eb = e.Bounds();
+                Vector2 c = { eb.x + eb.width / 2, eb.y + eb.height / 2 };
+                particles.SpawnStomp(c);
+                particles.SpawnScorePopup(
+                    { eb.x + eb.width / 2, eb.y }, 100, ORANGE
+                );
                 break;
             }
         }
@@ -169,6 +197,10 @@ void Game::UpdateProjectilesAndPowerUps(float dt) {
         if (!p.Alive()) continue;
         if (!player.IsDead() && CheckCollisionRecs(p.Bounds(), player.Bounds())) {
             score += 1000;
+            Rectangle pb = p.Bounds();
+            Vector2 c = { pb.x + pb.width / 2, pb.y + pb.height / 2 };
+            particles.SpawnCoinSpark(c);
+            particles.SpawnScorePopup({ c.x, pb.y }, 1000, GOLD);
             if (p.Kind() == PowerUpKind::Mushroom) {
                 player.ApplyPowerUp(PowerState::Big);
             } else {
@@ -196,6 +228,14 @@ void Game::Update(float dt) {
             time += dt;
             player.Update(dt, level);
             level.Update(dt);
+            particles.Update(dt);
+
+            // Polvo al saltar
+            if (player.ConsumeJustJumped()) {
+                Vector2 feet = { player.Position().x + player.Width() / 2,
+                                 player.Position().y + player.Height() };
+                particles.SpawnJumpDust(feet, player.FacingDir());
+            }
 
             for (auto& e : enemies) e.Update(dt, level);
 
@@ -220,7 +260,8 @@ void Game::Update(float dt) {
                         c.collected = true;
                         coinsGot++;
                         score += 50;
-                        // Vida extra cada 100 monedas (estilo SMB)
+                        particles.SpawnCoinSpark(c.pos);
+                        particles.SpawnScorePopup(c.pos, 50, GOLD);
                         if (coinsGot > 0 && coinsGot % 100 == 0) {
                             lives++;
                         }
@@ -306,6 +347,7 @@ void Game::Draw() {
                 for (auto& e : enemies)  e.Draw();
                 for (auto& b : barks)    b.Draw();
                 player.Draw();
+                particles.Draw();
             EndMode2D();
             DrawHUD();
             break;
@@ -336,10 +378,34 @@ void Game::DrawBackground() {
     if (idx < 0) idx = 0;
     if (idx >= Level::TOTAL_LEVELS) idx = Level::TOTAL_LEVELS - 1;
 
+    // Cielo gradiente
     DrawRectangleGradientV(0, 0, SCREEN_W, SCREEN_H, SKY_TOP[idx], SKY_BOTTOM[idx]);
 
+    // Sol/luna en cada nivel (parallax suave)
+    float parallax = (state == State::Playing) ? -camera.target.x * 0.05f : 0.0f;
+    if (idx == 0) {
+        // Sol amarillo
+        DrawCircle((int)(SCREEN_W * 0.82f + parallax), 90, 38, {255, 240, 180, 255});
+        DrawCircleGradient((int)(SCREEN_W * 0.82f + parallax), 90, 60,
+                           {255, 230, 140, 100}, {255, 230, 140, 0});
+    } else if (idx == 1) {
+        // Sol naranjado de atardecer
+        DrawCircle((int)(SCREEN_W * 0.78f + parallax), 110, 45, {255, 180, 100, 255});
+        DrawCircleGradient((int)(SCREEN_W * 0.78f + parallax), 110, 80,
+                           {255, 150, 80, 120}, {255, 150, 80, 0});
+    } else {
+        // Luna llena
+        DrawCircle((int)(SCREEN_W * 0.85f + parallax), 80, 35, {245, 240, 230, 255});
+        DrawCircleGradient((int)(SCREEN_W * 0.85f + parallax), 80, 60,
+                           {220, 220, 255, 120}, {220, 220, 255, 0});
+        // Crateres
+        DrawCircle((int)(SCREEN_W * 0.85f + parallax) - 8, 75, 4, {200, 195, 185, 255});
+        DrawCircle((int)(SCREEN_W * 0.85f + parallax) + 5, 88, 3, {200, 195, 185, 255});
+    }
+
+    // Estrellas / Nubes segun nivel
     if (idx == 2) {
-        for (int i = 0; i < 60; i++) {
+        for (int i = 0; i < 80; i++) {
             float sx = fmodf(i * 137.5f, SCREEN_W);
             float sy = fmodf(i * 71.3f, SCREEN_H * 0.7f);
             float twinkle = 0.5f + 0.5f * sinf(bgTime * 2.0f + i);
@@ -356,6 +422,66 @@ void Game::DrawBackground() {
                         {255, 255, 255, (unsigned char)(alpha - 20)});
             DrawEllipse((int)(cx - 20), (int)(cy + 3), 35, 15,
                         {255, 255, 255, (unsigned char)(alpha - 30)});
+        }
+    }
+
+    // Capa de montanas lejanas (parallax mas lento)
+    Color farMountain;
+    switch (idx) {
+        case 0:  farMountain = {120, 150, 180, 200}; break;  // azul grisaceo
+        case 1:  farMountain = {180, 130, 110, 200}; break;  // marron rojizo
+        default: farMountain = { 60,  50,  90, 200}; break;  // morado oscuro
+    }
+    {
+        float px = (state == State::Playing) ? -camera.target.x * 0.15f : 0.0f;
+        for (int i = -1; i < 6; i++) {
+            float bx = i * 220.0f + px;
+            float by = SCREEN_H - 200.0f;
+            DrawTriangle({bx, SCREEN_H - 50.0f},
+                         {bx + 110, by},
+                         {bx + 220, SCREEN_H - 50.0f},
+                         farMountain);
+        }
+    }
+
+    // Capa de colinas mas cercanas
+    Color nearHill;
+    switch (idx) {
+        case 0:  nearHill = { 90, 160,  90, 230}; break;  // verde oscuro
+        case 1:  nearHill = {130,  85,  60, 230}; break;
+        default: nearHill = { 40,  30,  70, 230}; break;
+    }
+    {
+        float px = (state == State::Playing) ? -camera.target.x * 0.30f : 0.0f;
+        for (int i = -1; i < 7; i++) {
+            float bx = i * 180.0f + px;
+            float cy = SCREEN_H - 80.0f;
+            DrawCircle((int)(bx + 90), (int)cy, 110, nearHill);
+        }
+    }
+
+    // Arboles silueteados (parallax mas rapido)
+    Color treeCol;
+    switch (idx) {
+        case 0:  treeCol = { 50, 110,  50, 240}; break;  // verde
+        case 1:  treeCol = { 90,  50,  30, 240}; break;  // marron
+        default: treeCol = { 30,  20,  50, 255}; break;  // casi negro
+    }
+    {
+        float px = (state == State::Playing) ? -camera.target.x * 0.45f : 0.0f;
+        for (int i = -1; i < 10; i++) {
+            float bx = i * 130.0f + px + (float)((i * 37) % 50);
+            float ground = SCREEN_H - 60.0f;
+            // Tronco
+            Color trunk = {(unsigned char)(treeCol.r / 2),
+                           (unsigned char)(treeCol.g / 2),
+                           (unsigned char)(treeCol.b / 2),
+                           treeCol.a};
+            DrawRectangle((int)bx - 4, (int)(ground - 22), 8, 24, trunk);
+            // Copa triangular en 3 capas
+            DrawTriangle({bx - 24, ground - 18}, {bx, ground - 60}, {bx + 24, ground - 18}, treeCol);
+            DrawTriangle({bx - 20, ground - 30}, {bx, ground - 70}, {bx + 20, ground - 30}, treeCol);
+            DrawTriangle({bx - 16, ground - 42}, {bx, ground - 80}, {bx + 16, ground - 42}, treeCol);
         }
     }
 }

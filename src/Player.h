@@ -48,6 +48,9 @@ public:
     // y estamos en Fire (el sistema de Game crea el proyectil).
     bool ConsumeShootRequest();
 
+    // Devuelve true (y se resetea) si el jugador acaba de saltar.
+    bool ConsumeJustJumped();
+
     Rectangle Bounds() const;
     Vector2   Position()  const { return pos; }
     Vector2   Velocity()  const { return vel; }
@@ -73,4 +76,8 @@ private:
     float      iframes    = 0.0f;   // tiempo de invencibilidad tras un golpe
     float      transformT = 0.0f;   // animacion al transformarse
     bool       wantShoot  = false;  // pendiente para que Game lo consuma
+    float      coyoteT    = 0.0f;   // grace period para saltar tras dejar el suelo
+    float      jumpBufT   = 0.0f;   // buffer para presion de salto anticipada
+    bool       jumping    = false;  // true mientras esta subiendo en un salto
+    bool       justJumped = false;  // un frame en true tras presionar salto
 };

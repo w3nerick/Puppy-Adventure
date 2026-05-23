@@ -2,12 +2,15 @@
 #include "Level.h"
 #include <cmath>
 
-static constexpr float GRAVITY    = 1200.0f;
+static constexpr float GRAVITY    = 1400.0f;
 static constexpr float MOVE_SPEED = 280.0f;
-static constexpr float JUMP_VEL   = -520.0f;
-static constexpr float MAX_FALL   = 700.0f;
+static constexpr float JUMP_VEL   = -680.0f;   // salto mas alto
+static constexpr float JUMP_CUT   = 0.45f;     // si sueltas espacio mientras subes, recortamos
+static constexpr float MAX_FALL   = 750.0f;
 static constexpr float IFRAMES    = 1.4f;
 static constexpr float TRANSFORM  = 0.5f;
+static constexpr float COYOTE_T   = 0.10f;     // grace para saltar tras caer del borde
+static constexpr float JUMP_BUF   = 0.12f;     // buffer si presionas justo antes de tocar suelo
 
 float Player::Width()  const { return (state == PowerState::Small) ? SMALL_W : BIG_W; }
 float Player::Height() const { return (state == PowerState::Small) ? SMALL_H : BIG_H; }
@@ -29,6 +32,9 @@ void Player::Reset(Vector2 spawn) {
     iframes    = 0;
     transformT = 0;
     wantShoot  = false;
+    coyoteT    = 0;
+    jumpBufT   = 0;
+    jumping    = false;
 }
 
 void Player::Update(float dt, const Level& level) {
@@ -37,6 +43,8 @@ void Player::Update(float dt, const Level& level) {
     // Timers
     if (iframes    > 0) iframes    -= dt;
     if (transformT > 0) transformT -= dt;
+    if (coyoteT    > 0) coyoteT    -= dt;
+    if (jumpBufT   > 0) jumpBufT   -= dt;
 
     // Movimiento horizontal
     float moveInput = 0.0f;
@@ -45,16 +53,34 @@ void Player::Update(float dt, const Level& level) {
 
     // Sprint con SHIFT (estilo SMB)
     float speed = MOVE_SPEED;
-    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) speed *= 1.5f;
+    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) speed *= 1.55f;
 
     vel.x = moveInput * speed;
     if (moveInput != 0) facing = (moveInput > 0) ? 1 : -1;
 
-    // Salto
-    if ((IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) && onGround) {
+    // Buffer de salto: si presionaste hace poco, queda guardado
+    if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
+        jumpBufT = JUMP_BUF;
+    }
+
+    // Salto: dispara si tienes buffer Y (estas en suelo o en coyote time)
+    bool canJump = onGround || coyoteT > 0;
+    if (jumpBufT > 0 && canJump) {
         vel.y = JUMP_VEL;
         onGround = false;
+        coyoteT  = 0;
+        jumpBufT = 0;
+        jumping  = true;
+        justJumped = true;
     }
+
+    // Variable jump height: si sueltas el boton mientras subes, recortamos vel.y
+    bool jumpHeld = IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_W);
+    if (jumping && !jumpHeld && vel.y < 0) {
+        vel.y *= JUMP_CUT;
+        jumping = false;
+    }
+    if (vel.y >= 0) jumping = false;
 
     // Disparo (solo en Fire) - tecla X o J
     if (state == PowerState::Fire &&
@@ -74,6 +100,7 @@ void Player::Update(float dt, const Level& level) {
     }
 
     // Mover en Y
+    bool wasOnGround = onGround;
     pos.y += vel.y * dt;
     if (level.RectIntersectsSolid(Bounds())) {
         pos.y -= vel.y * dt;
@@ -81,6 +108,10 @@ void Player::Update(float dt, const Level& level) {
         vel.y = 0;
     } else {
         onGround = false;
+    }
+    // Si recien dejamos el suelo (no por saltar), activar coyote time
+    if (wasOnGround && !onGround && !jumping) {
+        coyoteT = COYOTE_T;
     }
 
     if (pos.x < 0) pos.x = 0;
@@ -106,6 +137,11 @@ void Player::Update(float dt, const Level& level) {
 
 bool Player::ConsumeShootRequest() {
     if (wantShoot) { wantShoot = false; return true; }
+    return false;
+}
+
+bool Player::ConsumeJustJumped() {
+    if (justJumped) { justJumped = false; return true; }
     return false;
 }
 
