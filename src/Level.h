@@ -7,10 +7,21 @@
 // Tipos de tile que componen el mapa.
 enum class Tile : unsigned char {
     Empty,
-    Ground,   // bloque de tierra/cesped
-    Brick,    // bloque flotante (ladrillo)
-    Goal,     // bloque/poste de meta
-    Spike     // pinchos: matan al jugador al tocarlos
+    Ground,        // bloque de tierra/cesped
+    Brick,         // bloque flotante (ladrillo)
+    Goal,          // bloque/poste de meta
+    Spike,         // pinchos: matan al jugador al tocarlos
+    MysteryBlock,  // '?' bloque sorpresa, suelta power-up al golpear desde abajo
+    CoinBlock,     // '$' bloque que suelta una moneda al golpear
+    UsedBlock      // bloque ya golpeado (vacio, sigue siendo solido)
+};
+
+// Que suelta un bloque al ser golpeado desde abajo.
+enum class BlockDrop : unsigned char {
+    None,
+    Coin,
+    Mushroom,  // hueso magico (Big)
+    FireFlower // pimiento de fuego (Fire)
 };
 
 // Moneda recolectable.
@@ -28,19 +39,28 @@ public:
 
     Level();
 
-    // Construye el nivel `n` (1..TOTAL_LEVELS).
     void Build(int levelNumber);
 
-    // Anima monedas, etc.
     void Update(float dt);
 
-    // Dibuja solo los tiles visibles (cull con la camara).
     void Draw(const Camera2D& camera) const;
 
     // Acceso al grid.
     bool IsSolid(int tx, int ty) const;
     bool RectIntersectsSolid(Rectangle r) const;
     bool RectIntersectsSpikes(Rectangle r) const;
+
+    // Golpea el tile (x,y) desde abajo. Si era un MysteryBlock o CoinBlock,
+    // lo convierte en UsedBlock y devuelve que dropea.
+    BlockDrop HitFromBelow(int tx, int ty);
+
+    // Anade una moneda dinamica (la que sale del CoinBlock).
+    void SpawnCoin(Vector2 pos);
+
+    // Posicion en pixeles del centro del tile (tx,ty).
+    Vector2 TileCenter(int tx, int ty) const {
+        return { (float)(tx * TILE + TILE / 2), (float)(ty * TILE + TILE / 2) };
+    }
 
     int Cols()        const { return cols; }
     int Rows()        const { return rows; }
